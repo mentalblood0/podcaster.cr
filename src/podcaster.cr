@@ -1,3 +1,4 @@
+require "http/client"
 require "process"
 require "json"
 require "log"
@@ -80,8 +81,9 @@ module Podcaster
     getter performer : String?
     getter title : String
     getter duration : Time::Span
+    getter thumbnail : URI
 
-    def initialize(@url, performer : String, @title, @duration)
+    def initialize(@url, performer : String, @title, @duration, @thumbnail)
       performer = performer.sub(/Various Artists? *(?:-|—)? */, "").strip
       @title = @title.sub(/Various Artists? *(?:-|—)? */, "").strip
 
@@ -127,10 +129,11 @@ module Podcaster
               Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                                      "--print", "uploader",
                                      "--print", "title",
-                                     "--print", "duration", track_url.to_s])
+                                     "--print", "duration",
+                                     "--print", "thumbnail", track_url.to_s])
                 .result.lines
-                .each_slice 3 do |track_info|
-                  yield item = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
+                .each_slice 4 do |track_info|
+                  yield item = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3]
                   @cache << cache_entry track_url
                 end
             end
@@ -149,6 +152,8 @@ module Podcaster
   end
 
   class Downloader
+    @thumbnails_cache = {} of URI => File
+
     def initialize(@bitrate : Int16?,
                    @conversion_params : ConversionParams?,
                    @thumbnail_side_size : Int16,
@@ -160,30 +165,57 @@ module Podcaster
       format = @bitrate ? "ba[abr<=#{@bitrate}]/wa[abr>=#{@bitrate}]" : "mp3"
       Log.info { "<-- #{item.url}" }
       downloaded = File.tempfile ".mp3"
-      Command.new("yt-dlp", ["--proxy", @audio_proxy.to_s, "--force-overwrites", "-f", format, "-o", downloaded.path, item.url.to_s]).result
+      Command.new("yt-dlp", ["--proxy", @audio_proxy.to_s, "--force-overwrites", "-f", format,
+                             "-o", downloaded.path, item.url.to_s]).result
       return downloaded if !@conversion_params
+      cp = @conversion_params.not_nil!
       converted = File.tempfile ".mp3"
       Command.new("ffmpeg", ["-i", downloaded.path, "-vn",
-                             "-ar", @conversion_params.not_nil!.samplerate.to_s,
-                             "-ac", @conversion_params.not_nil!.stereo ? "2" : "1",
-                             "-b:a", "#{@conversion_params.not_nil!.bitrate}k", converted.path]).result
+                             "-ar", cp.samplerate.to_s,
+                             "-ac", cp.stereo ? "2" : "1",
+                             "-b:a", "#{cp.bitrate}k", converted.path]).result
       downloaded.delete
       converted
     end
 
     def thumbnail(item : Item)
+      if !@thumbnails_cache.has_key? item.thumbnail
+        downloaded_path = File.tempname
+        Command.new("yt-dlp", ["--proxy", @thumbnail_proxy.to_s,
+                               item.thumbnail.to_s, "--force-overwrites",
+                               "-o", downloaded_path]).result
+
+        converted = File.tempfile ".png"
+        Command.new("ffmpeg", ["-y", "-i", downloaded_path, converted.path]).result
+        File.delete downloaded_path
+
+        resized = File.tempfile ".png"
+        s = @thumbnail_side_size
+        Command.new("ffmpeg", ["-y", "-i", converted.path, "-vf",
+                               "scale=#{s}:#{s}:force_original_aspect_ratio=increase,crop=#{s}:#{s}", resized.path]).result
+        converted.delete
+        @thumbnails_cache[item.thumbnail] = resized
+      end
+      @thumbnails_cache[item.thumbnail]
+    end
+
+    def finalize
+      @thumbnails_cache.each_value &.delete
     end
   end
 end
 
 proxy = URI.parse "http://127.0.0.1:2080"
 
-bandcamp = Podcaster::Bandcamp.new "archeannights", URI.parse "http://127.0.0.1:2080"
+bandcamp = Podcaster::Bandcamp.new "archeannights", proxy
 downloader = Podcaster::Downloader.new bitrate: 128,
   conversion_params: nil,
   thumbnail_side_size: 200,
   audio_proxy: nil, thumbnail_proxy: proxy
 
-bandcamp.items "long-forgotten-cities-ii" do |item|
+bandcamp.items start_after_album_id: "long-forgotten-cities-ii" do |item|
   puts downloader.audio(item).path
+  puts downloader.thumbnail(item).path
 end
+
+downloader.finalize
