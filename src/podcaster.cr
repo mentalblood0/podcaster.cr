@@ -72,6 +72,10 @@ module Podcaster
       @items << item
       File.write @path, item.to_json + "\n", mode: "a"
     end
+
+    def includes?(item : JSON::Any)
+      @items.includes? item
+    end
   end
 
   struct Item
@@ -105,24 +109,32 @@ module Podcaster
       @cache = Cache.new artist_id
     end
 
-    def items(&)
-      Command.new("yt-dlp", ["--skip-download", "--flat-playlist", "--proxy", "", "--print", "url", @artist_url.to_s]).result.lines.reverse_each do |album_line|
-        album_url = URI.parse album_line
-        Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "url", album_url.to_s]).result.each_line do |track_line|
-          track_url = URI.parse track_line
-          Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "uploader", "--print", "title", "--print", "duration", track_url.to_s]).result.lines.each_slice 3 do |track_info|
-            result = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
-            yield result
-            @cache << JSON::Any.new track_url.path
+    protected def album_cache_item(album_url : URI)
+      JSON::Any.new album_url.path
+    end
+
+    def items(start_after_album_id : String? = nil, &)
+      Command.new("yt-dlp", ["--skip-download", "--flat-playlist", "--proxy", "", "--print", "url", @artist_url.to_s])
+        .result.lines.reverse
+        .map { |line| URI.parse line }
+        .skip_while { |url| start_after_album_id && (Path.new(url.path).basename != start_after_album_id) }.skip(1)
+        .select { |url| !@cache.includes? album_cache_item url }
+        .each do |album_url|
+          Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "url", album_url.to_s]).result.each_line do |track_line|
+            track_url = URI.parse track_line
+            Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "uploader", "--print", "title", "--print", "duration", track_url.to_s]).result.lines.each_slice 3 do |track_info|
+              result = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
+              yield result
+              @cache << JSON::Any.new track_url.path
+            end
           end
+          @cache << album_cache_item album_url
         end
-        @cache << JSON::Any.new album_url.path
-      end
     end
   end
 end
 
 bandcamp = Podcaster::Bandcamp.new "archeannights"
-bandcamp.items do |item|
+bandcamp.items "long-forgotten-cities-ii" do |item|
   puts item
 end
