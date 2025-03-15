@@ -159,6 +159,7 @@ module Podcaster
                    @thumbnail_side_size : Int16,
                    @audio_proxy : URI?,
                    @thumbnail_proxy : URI?)
+      at_exit { finalize }
     end
 
     def audio(item : Item)
@@ -217,5 +218,3 @@ bandcamp.items start_after_album_id: "long-forgotten-cities-ii" do |item|
   puts downloader.audio(item).path
   puts downloader.thumbnail(item).path
 end
-
-downloader.finalize
