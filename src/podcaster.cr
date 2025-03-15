@@ -1,12 +1,9 @@
 require "process"
 require "json"
+require "log"
 require "uri"
 
 module Podcaster
-  class_property ytdlp_proxy, temp_files_dir
-  @@ytdlp_proxy = "http://127.0.0.1:2080"
-  @@temp_files_dir = Path.new "/mnt/tmpfs"
-
   class Command
     class RecoverableError < Exception
       class_property substrings
@@ -31,15 +28,15 @@ module Podcaster
     end
 
     def initialize(@command : String, @args : Enumerable(String))
-      @process = Process.new command, args,
-        {"http_proxy" => Podcaster.ytdlp_proxy, "https_proxy" => Podcaster.ytdlp_proxy},
-        output: :pipe, error: :pipe,
-        chdir: Podcaster.temp_files_dir
+      # puts "#{@command} #{@args}"
+      @process = Process.new command, args, output: :pipe, error: :pipe
     end
 
     def result
       output = @process.output.gets_to_end
+      # puts "output: #{output}" if output.size > 1
       error = @process.error.gets_to_end
+      # puts "error: #{error}" if error.size > 1
       ec = @process.wait.exit_code
       raise Exception.new "No exit code for process #{@command} #{@args}" if ec == nil
       if ec != 0
@@ -53,28 +50,28 @@ module Podcaster
   class Cache
     @@dir = (Path.new.posix? ? Path.new("~", ".local", "share", "podcaster_cr") : Path.new("~", "AppData", "podcaster_cr")).expand(home: true)
 
-    @items : Set(JSON::Any) = Set(JSON::Any).new
+    @entries : Set(JSON::Any) = Set(JSON::Any).new
     @path : Path
 
     def initialize(name : String)
       @path = @@dir / "#{name}.txt"
       if File.exists? @path
         File.each_line @path do |line|
-          @items << JSON.parse line
+          @entries << JSON.parse line
         end
       else
         Dir.mkdir_p @@dir
       end
     end
 
-    def <<(item : JSON::Any)
-      return if @items.includes? item
-      @items << item
-      File.write @path, item.to_json + "\n", mode: "a"
+    def <<(entry : JSON::Any)
+      return if @entries.includes? entry
+      @entries << entry
+      File.write @path, entry.to_json + "\n", mode: "a"
     end
 
-    def includes?(item : JSON::Any)
-      @items.includes? item
+    def includes?(entry : JSON::Any)
+      @entries.includes? entry
     end
   end
 
@@ -104,46 +101,89 @@ module Podcaster
   end
 
   class Bandcamp
-    def initialize(@artist_id : String)
+    def initialize(artist_id : String, @proxy : URI? = nil)
       @artist_url = URI.new "http", "#{artist_id}.bandcamp.com"
       @cache = Cache.new artist_id
     end
 
-    protected def cache_item(url : URI)
+    protected def cache_entry(url : URI)
       JSON::Any.new url.path
     end
 
     def items(start_after_album_id : String? = nil, &)
-      Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+      Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                              "--print", "url", @artist_url.to_s])
         .result.lines.reverse
         .map { |line| URI.parse line }
         .skip_while { |url| start_after_album_id && (Path.new(url.path).basename != start_after_album_id) }.skip(1)
-        .select { |url| !@cache.includes? cache_item url }
+        .select { |url| !@cache.includes? cache_entry url }
         .each do |album_url|
-          Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+          Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                                  "--print", "url", album_url.to_s])
             .result.lines
             .map { |line| URI.parse line }
-            .select { |url| !@cache.includes? cache_item url }
+            .select { |url| !@cache.includes? cache_entry url }
             .each do |track_url|
-              Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+              Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                                      "--print", "uploader",
                                      "--print", "title",
                                      "--print", "duration", track_url.to_s])
                 .result.lines
                 .each_slice 3 do |track_info|
                   yield item = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
-                  @cache << cache_item track_url
+                  @cache << cache_entry track_url
                 end
             end
-          @cache << cache_item album_url
+          @cache << cache_entry album_url
         end
+    end
+  end
+
+  class ConversionParams
+    getter bitrate : Int16
+    getter samplerate : Int16
+    getter stereo : Bool
+
+    def initialize(@bitrate, @samplerate, @stereo)
+    end
+  end
+
+  class Downloader
+    def initialize(@bitrate : Int16?,
+                   @conversion_params : ConversionParams?,
+                   @thumbnail_side_size : Int16,
+                   @audio_proxy : URI?,
+                   @thumbnail_proxy : URI?)
+    end
+
+    def audio(item : Item)
+      format = @bitrate ? "ba[abr<=#{@bitrate}]/wa[abr>=#{@bitrate}]" : "mp3"
+      Log.info { "<-- #{item.url}" }
+      downloaded = File.tempfile ".mp3"
+      Command.new("yt-dlp", ["--proxy", @audio_proxy.to_s, "--force-overwrites", "-f", format, "-o", downloaded.path, item.url.to_s]).result
+      return downloaded if !@conversion_params
+      converted = File.tempfile ".mp3"
+      Command.new("ffmpeg", ["-i", downloaded.path, "-vn",
+                             "-ar", @conversion_params.not_nil!.samplerate.to_s,
+                             "-ac", @conversion_params.not_nil!.stereo ? "2" : "1",
+                             "-b:a", "#{@conversion_params.not_nil!.bitrate}k", converted.path]).result
+      downloaded.delete
+      converted
+    end
+
+    def thumbnail(item : Item)
     end
   end
 end
 
-bandcamp = Podcaster::Bandcamp.new "archeannights"
+proxy = URI.parse "http://127.0.0.1:2080"
+
+bandcamp = Podcaster::Bandcamp.new "archeannights", URI.parse "http://127.0.0.1:2080"
+downloader = Podcaster::Downloader.new bitrate: 128,
+  conversion_params: nil,
+  thumbnail_side_size: 200,
+  audio_proxy: nil, thumbnail_proxy: proxy
+
 bandcamp.items "long-forgotten-cities-ii" do |item|
-  puts item
+  puts downloader.audio(item).path
 end
