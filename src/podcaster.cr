@@ -109,26 +109,35 @@ module Podcaster
       @cache = Cache.new artist_id
     end
 
-    protected def album_cache_item(album_url : URI)
-      JSON::Any.new album_url.path
+    protected def cache_item(url : URI)
+      JSON::Any.new url.path
     end
 
     def items(start_after_album_id : String? = nil, &)
-      Command.new("yt-dlp", ["--skip-download", "--flat-playlist", "--proxy", "", "--print", "url", @artist_url.to_s])
+      Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+                             "--print", "url", @artist_url.to_s])
         .result.lines.reverse
         .map { |line| URI.parse line }
         .skip_while { |url| start_after_album_id && (Path.new(url.path).basename != start_after_album_id) }.skip(1)
-        .select { |url| !@cache.includes? album_cache_item url }
+        .select { |url| !@cache.includes? cache_item url }
         .each do |album_url|
-          Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "url", album_url.to_s]).result.each_line do |track_line|
-            track_url = URI.parse track_line
-            Command.new("yt-dlp", ["--flat-playlist", "--proxy", "", "--print", "uploader", "--print", "title", "--print", "duration", track_url.to_s]).result.lines.each_slice 3 do |track_info|
-              result = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
-              yield result
-              @cache << JSON::Any.new track_url.path
+          Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+                                 "--print", "url", album_url.to_s])
+            .result.lines
+            .map { |line| URI.parse line }
+            .select { |url| !@cache.includes? cache_item url }
+            .each do |track_url|
+              Command.new("yt-dlp", ["--flat-playlist", "--proxy", "",
+                                     "--print", "uploader",
+                                     "--print", "title",
+                                     "--print", "duration", track_url.to_s])
+                .result.lines
+                .each_slice 3 do |track_info|
+                  yield item = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds
+                  @cache << cache_item track_url
+                end
             end
-          end
-          @cache << album_cache_item album_url
+          @cache << cache_item album_url
         end
     end
   end
