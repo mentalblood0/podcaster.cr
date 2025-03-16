@@ -8,7 +8,7 @@ module Podcaster
         include YAML::Serializable
 
         getter bitrate : Int16
-        getter samplerate : Int16
+        getter samplerate : Int32
         getter? stereo : Bool
       end
 

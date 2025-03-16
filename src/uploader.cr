@@ -68,7 +68,7 @@ module Podcaster
           sleep 1.seconds
         end
       end
-      File.delete downloaded.audio
+      File.delete? downloaded.audio
     end
   end
 end
