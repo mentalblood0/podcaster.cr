@@ -15,7 +15,7 @@ module Podcaster
       include YAML::Serializable
 
       getter bitrate : Int16?
-      getter proxy : URI
+      getter proxy : URI?
       getter conversion : Conversion?
     end
 
@@ -23,7 +23,7 @@ module Podcaster
       include YAML::Serializable
 
       getter side_size : Int16
-      getter proxy : URI
+      getter proxy : URI?
     end
 
     include YAML::Serializable

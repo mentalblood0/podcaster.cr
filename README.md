@@ -10,9 +10,12 @@ Temporary files will be located in default system temporary files directory, mou
 
 ## Installation
 
-TODO: Write installation instructions here
+```bash
+shards build --production --release
+```
 
 ## Usage
 
-TODO: Write usage instructions here
-
+```bash
+./podcaster
+```
