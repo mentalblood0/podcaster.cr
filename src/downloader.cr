@@ -7,14 +7,14 @@ module Podcaster
       class Conversion
         include YAML::Serializable
 
-        getter bitrate : Int16
-        getter samplerate : Int32
+        getter bitrate : UInt16
+        getter samplerate : UInt32
         getter? stereo : Bool
       end
 
       include YAML::Serializable
 
-      getter bitrate : Int16?
+      getter bitrate : UInt16?
       getter proxy : URI?
       getter conversion : Conversion?
     end
@@ -22,7 +22,7 @@ module Podcaster
     class Thumbnail
       include YAML::Serializable
 
-      getter side_size : Int16
+      getter side_size : UInt16
       getter proxy : URI?
     end
 
