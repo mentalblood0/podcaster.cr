@@ -45,6 +45,7 @@ module Podcaster
             @process = run
             next
           end
+          raise "Unknown error"
         end
         return output
       end

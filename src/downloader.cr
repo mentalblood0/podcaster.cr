@@ -35,7 +35,7 @@ module Podcaster
     getter thumbnail : Thumbnail
 
     def after_initialize
-      at_exit { @thumbnails_cache.each_value { |path| File.delete path } }
+      at_exit { @thumbnails_cache.each_value { |path| File.delete? path } }
     end
 
     protected def audio(item : Item)
@@ -51,7 +51,7 @@ module Podcaster
                              "-ar", cp.samplerate.to_s,
                              "-ac", cp.stereo? ? "2" : "1",
                              "-b:a", "#{cp.bitrate}k", converted]).result
-      File.delete downloaded
+      File.delete? downloaded
       Path.new converted
     end
 
@@ -63,13 +63,13 @@ module Podcaster
 
         converted = File.tempname ".png"
         Command.new("ffmpeg", ["-y", "-i", downloaded, converted]).result
-        File.delete downloaded
+        File.delete? downloaded
 
         resized = File.tempname ".png"
         s = @thumbnail.side_size
         Command.new("ffmpeg", ["-y", "-i", converted, "-vf",
                                "scale=#{s}:#{s}:force_original_aspect_ratio=increase,crop=#{s}:#{s}", resized]).result
-        File.delete converted
+        File.delete? converted
         @thumbnails_cache[item.thumbnail] = Path.new resized
       end
       @thumbnails_cache[item.thumbnail]
