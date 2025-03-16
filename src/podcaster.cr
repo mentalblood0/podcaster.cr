@@ -28,23 +28,32 @@ module Podcaster
       ]
     end
 
+    @process : Process
+
     def initialize(@command : String, @args : Enumerable(String))
-      # puts "#{@command} #{@args}"
-      @process = Process.new command, args, output: :pipe, error: :pipe
+      @process = run
+    end
+
+    def run
+      Process.new @command, @args, output: :pipe, error: :pipe
     end
 
     def result
-      output = @process.output.gets_to_end
-      # puts "output: #{output}" if output.size > 1
-      error = @process.error.gets_to_end
-      # puts "error: #{error}" if error.size > 1
-      ec = @process.wait.exit_code
-      raise Exception.new "No exit code for process #{@command} #{@args}" if ec == nil
-      if ec != 0
-        raise RecoverableError.new "#{@command} #{@args}" if RecoverableError.substrings.any? { |sub| error.includes? sub }
-        raise FatalError.new "#{@command} #{@args}" if FatalError.substrings.any? { |sub| error.includes? sub }
+      loop do
+        output = @process.output.gets_to_end
+        error = @process.error.gets_to_end
+        ec = @process.wait.exit_code
+        raise Exception.new "No exit code for process #{@command} #{@args}" if ec == nil
+        if ec != 0
+          puts "error executing #{@command} #{@args}: #{error}" if error.size > 1
+          raise FatalError.new "#{@command} #{@args}" if FatalError.substrings.any? { |sub| error.includes? sub }
+          if RecoverableError.substrings.any? { |sub| error.includes? sub }
+            @process = run
+            next
+          end
+        end
+        return output
       end
-      output
     end
   end
 
@@ -96,6 +105,10 @@ module Podcaster
       end
 
       @title = @title.sub(/#{@performer} ?-|—/, "").strip
+    end
+
+    def to_s(io : IO)
+      io.print "#{performer} - #{title} (#{url})"
     end
   end
 
@@ -151,8 +164,21 @@ module Podcaster
     end
   end
 
+  class Downloaded
+    getter item : Item
+    getter audio : Path
+    getter thumbnail : Path
+
+    def initialize(@item, @audio, @thumbnail)
+    end
+
+    def to_s(io : IO)
+      io.print "#{item.performer} - #{item.title} (#{audio}, #{thumbnail})"
+    end
+  end
+
   class Downloader
-    @thumbnails_cache = {} of URI => File
+    @thumbnails_cache = {} of URI => Path
 
     def initialize(@bitrate : Int16?,
                    @conversion_params : ConversionParams?,
@@ -162,59 +188,133 @@ module Podcaster
       at_exit { finalize }
     end
 
-    def audio(item : Item)
+    protected def audio(item : Item)
       format = @bitrate ? "ba[abr<=#{@bitrate}]/wa[abr>=#{@bitrate}]" : "mp3"
-      Log.info { "<-- #{item.url}" }
-      downloaded = File.tempfile ".mp3"
+      Log.info { "<-- #{item}" }
+      downloaded = File.tempname ".mp3"
       Command.new("yt-dlp", ["--proxy", @audio_proxy.to_s, "--force-overwrites", "-f", format,
-                             "-o", downloaded.path, item.url.to_s]).result
-      return downloaded if !@conversion_params
+                             "-o", downloaded, item.url.to_s]).result
+      return Path.new(downloaded) if !@conversion_params
       cp = @conversion_params.not_nil!
-      converted = File.tempfile ".mp3"
-      Command.new("ffmpeg", ["-i", downloaded.path, "-vn",
+      converted = File.tempname ".mp3"
+      Command.new("ffmpeg", ["-i", downloaded, "-vn",
                              "-ar", cp.samplerate.to_s,
                              "-ac", cp.stereo ? "2" : "1",
-                             "-b:a", "#{cp.bitrate}k", converted.path]).result
-      downloaded.delete
-      converted
+                             "-b:a", "#{cp.bitrate}k", converted]).result
+      File.delete downloaded
+      Path.new converted
     end
 
-    def thumbnail(item : Item)
+    protected def thumbnail(item : Item)
       if !@thumbnails_cache.has_key? item.thumbnail
-        downloaded_path = File.tempname
+        downloaded = File.tempname
         Command.new("yt-dlp", ["--proxy", @thumbnail_proxy.to_s,
-                               item.thumbnail.to_s, "--force-overwrites",
-                               "-o", downloaded_path]).result
+                               item.thumbnail.to_s, "-o", downloaded]).result
 
-        converted = File.tempfile ".png"
-        Command.new("ffmpeg", ["-y", "-i", downloaded_path, converted.path]).result
-        File.delete downloaded_path
+        converted = File.tempname ".png"
+        Command.new("ffmpeg", ["-y", "-i", downloaded, converted]).result
+        File.delete downloaded
 
-        resized = File.tempfile ".png"
+        resized = File.tempname ".png"
         s = @thumbnail_side_size
-        Command.new("ffmpeg", ["-y", "-i", converted.path, "-vf",
-                               "scale=#{s}:#{s}:force_original_aspect_ratio=increase,crop=#{s}:#{s}", resized.path]).result
-        converted.delete
-        @thumbnails_cache[item.thumbnail] = resized
+        Command.new("ffmpeg", ["-y", "-i", converted, "-vf",
+                               "scale=#{s}:#{s}:force_original_aspect_ratio=increase,crop=#{s}:#{s}", resized]).result
+        File.delete converted
+        @thumbnails_cache[item.thumbnail] = Path.new resized
       end
       @thumbnails_cache[item.thumbnail]
     end
 
+    def download(item : Item)
+      Downloaded.new item, audio(item), thumbnail(item)
+    end
+
     def finalize
-      @thumbnails_cache.each_value &.delete
+      @thumbnails_cache.each_value { |path| File.delete path }
+    end
+  end
+
+  class Uploader
+    @@max_size = 48 * 1024 * 1024
+
+    def initialize(@token : String)
+    end
+
+    protected def split(input : Downloaded, &)
+      parts = (File.size(input.audio) / @@max_size).ceil
+      output_duration = input.item.duration / parts
+      workers = [] of NamedTuple(command: Command, output: Downloaded)
+      (0..parts - 1).each do |i|
+        output = Downloaded.new(
+          item: Item.new(input.item.url, input.item.performer.to_s, "#{input.item.title} - #{i + 1}", output_duration, input.item.thumbnail),
+          audio: Path.new(File.tempname(".mp3")),
+          thumbnail: input.thumbnail)
+        command = Command.new "ffmpeg", ["-y", "-hide_banner", "-loglevel", "error",
+                                         "-ss", (output_duration * i).total_seconds.to_s,
+                                         "-i", input.audio.to_s,
+                                         "-t", output_duration.total_seconds.to_s, "-acodec", "copy", output.audio.to_s]
+        workers << {command: command, output: output}
+      end
+      workers.each do |worker|
+        worker[:command].result
+        yield worker[:output]
+      end
+    end
+
+    def upload(downloaded : Downloaded, chat_id : String)
+      size = File.size downloaded.audio
+      if size > @@max_size
+        split(downloaded) { |part| upload part, chat_id }
+      else
+        io = IO::Memory.new
+        builder = HTTP::FormData::Builder.new io
+        builder.field "chat_id", chat_id
+        builder.field "title", downloaded.item.title
+        builder.field "performer", downloaded.item.performer
+        builder.field "duration", downloaded.item.duration.total_seconds
+        builder.field "disable_notification", true
+        builder.file "audio",
+          File.new(downloaded.audio),
+          HTTP::FormData::FileMetadata.new(filename: "audio"),
+          HTTP::Headers{"Content-Type" => "audio/mpeg"}
+        builder.file "thumbnail",
+          File.new(downloaded.thumbnail),
+          HTTP::FormData::FileMetadata.new(filename: "thumbnail"),
+          HTTP::Headers{"Content-Type" => "image/png"}
+        builder.finish
+        body = io.to_s
+        headers = HTTP::Headers{"Content-Type" => builder.content_type}
+
+        Log.info { "--> #{downloaded}" }
+        loop do
+          response = begin
+            HTTP::Client.post("https://api.telegram.org/bot#{@token}/sendAudio", headers: headers, body: body)
+          rescue ex
+            Log.warn { "Exception when sending: '#{ex.message}', retrying in 0.2 seconds" }
+            sleep 0.2.seconds
+            next
+          end
+          break if response.success?
+          Log.warn { "Non-success response with status code #{response.status_code}: #{response.body?}" }
+          sleep 1.seconds
+        end
+      end
+      File.delete downloaded.audio
     end
   end
 end
 
 proxy = URI.parse "http://127.0.0.1:2080"
 
-bandcamp = Podcaster::Bandcamp.new "archeannights", proxy
+bandcamp = Podcaster::Bandcamp.new "weltlandschaft", proxy
 downloader = Podcaster::Downloader.new bitrate: 128,
   conversion_params: nil,
   thumbnail_side_size: 200,
   audio_proxy: nil, thumbnail_proxy: proxy
+uploader = Podcaster::Uploader.new "token here"
+chat_id = "-1002328331030"
 
-bandcamp.items start_after_album_id: "long-forgotten-cities-ii" do |item|
-  puts downloader.audio(item).path
-  puts downloader.thumbnail(item).path
+bandcamp.items start_after_album_id: "bin-tepe" do |item|
+  downloaded = downloader.download(item)
+  uploader.upload downloaded, chat_id
 end
