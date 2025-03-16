@@ -31,7 +31,7 @@ module Podcaster
       cache = Cache.new task.artist
       Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                              "--print", "url", artist_url.to_s])
-        .result.lines.reverse
+        .result.lines.reverse!
         .map { |line| URI.parse line }
         .skip_while { |url| task.start_after && (Path.new(url.path).basename != task.start_after) }.skip(1)
         .select { |url| !cache.includes? cache_entry url }
@@ -49,7 +49,7 @@ module Podcaster
                                      "--print", "thumbnail", track_url.to_s])
                 .result.lines
                 .each_slice 4 do |track_info|
-                  yield item = Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3]
+                  yield Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3]
                   cache << cache_entry track_url
                 end
             end

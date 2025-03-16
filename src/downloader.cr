@@ -9,7 +9,7 @@ module Podcaster
 
         getter bitrate : Int16
         getter samplerate : Int16
-        getter stereo : Bool
+        getter? stereo : Bool
       end
 
       include YAML::Serializable
@@ -49,7 +49,7 @@ module Podcaster
       converted = File.tempname ".mp3"
       Command.new("ffmpeg", ["-i", downloaded, "-vn",
                              "-ar", cp.samplerate.to_s,
-                             "-ac", cp.stereo ? "2" : "1",
+                             "-ac", cp.stereo? ? "2" : "1",
                              "-b:a", "#{cp.bitrate}k", converted]).result
       File.delete downloaded
       Path.new converted
