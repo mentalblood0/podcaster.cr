@@ -11,7 +11,11 @@ require "./parsers.cr"
 module Podcaster
   class Config
     class_property dir : Path
-    @@dir = (Path.new.posix? ? Path.new("~", ".config", "podcaster_cr") : Path.new("~", "AppData", "podcaster_cr", "config")).expand(home: true)
+    {% if flag?(:windows) %}
+      @@dir = Path.new("~", "AppData", "podcaster_cr", "config").expand(home: true)
+    {% else %}
+      @@dir = Path.new("~", ".config", "podcaster_cr").expand(home: true)
+    {% end %}
 
     include YAML::Serializable
 
@@ -21,7 +25,7 @@ module Podcaster
     getter tasks : Array(Task)
 
     def self.by_name(name : String)
-      Config.from_yaml File.read @@dir / (name + ".yml")
+      Config.from_yaml File.new @@dir / (name + ".yml")
     end
   end
 end
