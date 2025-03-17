@@ -29,7 +29,14 @@ module Podcaster
                              "--print", "url", artist_url.to_s])
         .result.lines.reverse!
         .map { |line| URI.parse line }
-        .skip_while { |url| task.start_after && (Path.new(url.path).basename != task.start_after) }.skip(1)
+        .skip_while do |url|
+          if task.start_after && (Path.new(url.path).basename != task.start_after)
+            cache << cache_entry url
+            true
+          else
+            false
+          end
+        end.skip(1)
         .select { |url| !cache.includes? cache_entry url }
         .each do |album_url|
           Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
@@ -75,21 +82,29 @@ module Podcaster
 
     def items(task : Task, &)
       cache = Cache.new task.artist.gsub /\W/, ""
+      skipping = true
       Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--flat-playlist", "--playlist-items", "::-1",
                              "--print", "url",
                              "--print", "title",
-                             "--print", "duration",
-                             "--print", "thumbnail", artist_url(task).to_s])
-        .result.lines
-        .each_slice 4 do |track_info|
-          url = URI.parse track_info[0]
-          title = track_info[1]
-          next if track_info[2] == "NA"
-          duration = track_info[2].to_f.seconds
-          next if cache.includes? cache_entry title, duration
+                             "--print", "duration", artist_url(task).to_s])
+        .result.lines.in_slices_of(3)
+        .map { |track_info| {url: URI.parse(track_info[0]), title: track_info[1], duration: track_info[2]} }
+        .select { |track_info| track_info[:duration] != "NA" }
+        .map { |track_info| {url: track_info[:url], title: track_info[:title], duration: track_info[:duration].to_f.seconds} }
+        .skip_while do |track_info|
+          if task.start_after && (track_info[:title] != task.start_after)
+            cache << cache_entry track_info[:title], track_info[:duration]
+            true
+          else
+            false
+          end
+        end.skip(1)
+        .select { |track_info| !cache.includes? cache_entry track_info[:title], track_info[:duration] }
+        .each do |track_info|
           thumbnail = URI.parse Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--playlist-items", "1",
-                                                       "--print", "thumbnail", url.to_s]).result.strip
-          yield Item.new url, performer(task), title, duration, thumbnail
+                                                       "--print", "thumbnail", track_info[:url].to_s]).result.strip
+          yield Item.new track_info[:url], performer(task), track_info[:title], track_info[:duration], thumbnail
+          cache << cache_entry track_info[:title], track_info[:duration]
         end
     end
   end
