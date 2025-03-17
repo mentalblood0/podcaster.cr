@@ -30,12 +30,8 @@ module Podcaster
         .result.lines.reverse!
         .map { |line| URI.parse line }
         .skip_while do |url|
-          if task.start_after && (Path.new(url.path).basename != task.start_after)
-            cache << cache_entry url
-            true
-          else
-            false
-          end
+          cache << cache_entry url
+          task.start_after && (Path.new(url.path).basename != task.start_after)
         end.skip(1)
         .select { |url| !cache.includes? cache_entry url }
         .each do |album_url|
@@ -92,12 +88,8 @@ module Podcaster
         .select { |track_info| track_info[:duration] != "NA" }
         .map { |track_info| {url: track_info[:url], title: track_info[:title], duration: track_info[:duration].to_f.seconds} }
         .skip_while do |track_info|
-          if task.start_after && (track_info[:title] != task.start_after)
-            cache << cache_entry track_info[:title], track_info[:duration]
-            true
-          else
-            false
-          end
+          cache << cache_entry track_info[:title], track_info[:duration]
+          task.start_after && (track_info[:title] != task.start_after)
         end.skip(1)
         .select { |track_info| !cache.includes? cache_entry track_info[:title], track_info[:duration] }
         .each do |track_info|
