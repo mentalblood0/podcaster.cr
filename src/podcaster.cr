@@ -34,6 +34,7 @@ if ARGV.size == 0 || (ARGV.size == 1 && (ARGV.first == "-h" || ARGV.first == "--
 parser:
   source: # youtube or bandcamp
   proxy: # address, e.g. http://127.0.0.1:1234, skip it for direct connection
+  only_cache: # do now download, just cache, true or false, false if skipped
 downloader:
   audio:
     bitrate: # preferred bitrate, e.g. 192, for each track the nearest available will be selected

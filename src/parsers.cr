@@ -10,7 +10,8 @@ module Podcaster
   abstract class Parser
     include YAML::Serializable
 
-    @proxy : URI?
+    getter proxy : URI?
+    getter? only_cache : Bool = false
 
     use_yaml_discriminator "source", {bandcamp: Bandcamp, youtube: Youtube}
 
@@ -31,7 +32,7 @@ module Podcaster
         .map { |line| URI.parse line }
         .skip_while do |url|
           cache << cache_entry url
-          task.start_after && (Path.new(url.path).basename != task.start_after)
+          only_cache? || (task.start_after && (Path.new(url.path).basename != task.start_after))
         end.skip(1)
         .select { |url| !cache.includes? cache_entry url }
         .each do |album_url|
@@ -89,7 +90,7 @@ module Podcaster
         .map { |track_info| {url: track_info[:url], title: track_info[:title], duration: track_info[:duration].to_f.seconds} }
         .skip_while do |track_info|
           cache << cache_entry track_info[:title], track_info[:duration]
-          task.start_after && (track_info[:title] != task.start_after)
+          only_cache? || (task.start_after && (track_info[:title] != task.start_after))
         end.skip(1)
         .select { |track_info| !cache.includes? cache_entry track_info[:title], track_info[:duration] }
         .each do |track_info|
