@@ -17,5 +17,5 @@ shards build --production --release
 ## Usage
 
 ```bash
-./podcaster
+./bin/podcaster
 ```

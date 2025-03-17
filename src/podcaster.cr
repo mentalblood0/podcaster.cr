@@ -27,35 +27,31 @@ module Podcaster
 end
 
 if ARGV.size == 0 || (ARGV.size == 1 && (ARGV.first == "-h" || ARGV.first == "--help"))
-  puts "Provide configs names, will look for configs in #{Podcaster::Config.dir}
-
-For example, create config
-    #{Podcaster::Config.dir / "test.yml"}
-
-with content like
----
+  puts "Provide configs names, will look for configs in #{Podcaster::Config.dir}"
+  example_path = Podcaster::Config.dir / "example.yml"
+  if !File.exists? example_path
+    File.write example_path, "---
 parser:
-  source: bandcamp
-  proxy: http://127.0.0.1:2080
+  source: # youtube or bandcamp
+  proxy: # address, e.g. http://127.0.0.1:1234
 downloader:
   audio:
-    bitrate: 128
-    proxy:
-    conversion:
-      # bitrate: 128
-      # samplerate: 44100
-      # stereo: false
+    bitrate: # preferred bitrate, e.g. 192, for each track the nearest available will be selected
+    proxy: # address, e.g. http://127.0.0.1:1234, skip it for direct connection
+    conversion: # remove this object to skip conversion (however, it is often needed for youtube)
+      bitrate: # number, Kb/s, e.g. 128
+      samplerate: # number, Hz, e.g. 44100
+      stereo: # true or false
   thumbnail:
-    side_size: 200
-    proxy: http://127.0.0.1:2080
+    side_size: # number, pixels, e.g. 200
+    proxy: # address, e.g. http://127.0.0.1:1234, skip it for direct conversion
 uploader:
-  token: your telegram bot token here
+  token: # your telegram bot token
 tasks:
-- artist: weltlandschaft
-  chat: your telegram chat id here
-
-and execute
-    podcaster test"
+- artist: # artist id, e.g. abc, will compose url as http://abc.bandcamp.com or http://www.youtube.com/abc, depending on parser source
+  chat: # telegram chat id, e.g. \"-1234567890123\""
+    puts "Also, see config template at #{example_path}"
+  end
 else
   ARGV.each do |name|
     config = Podcaster::Config.by_name(name)
