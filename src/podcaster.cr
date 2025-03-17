@@ -33,7 +33,7 @@ if ARGV.size == 0 || (ARGV.size == 1 && (ARGV.first == "-h" || ARGV.first == "--
     File.write example_path, "---
 parser:
   source: # youtube or bandcamp
-  proxy: # address, e.g. http://127.0.0.1:1234
+  proxy: # address, e.g. http://127.0.0.1:1234, skip it for direct connection
 downloader:
   audio:
     bitrate: # preferred bitrate, e.g. 192, for each track the nearest available will be selected
