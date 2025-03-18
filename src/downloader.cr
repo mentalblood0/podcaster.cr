@@ -42,7 +42,7 @@ module Podcaster
       format = @audio.bitrate ? "ba[abr<=#{@audio.bitrate}]/wa[abr>=#{@audio.bitrate}]" : "mp3"
       Log.info { "<-- #{item}" }
       downloaded = File.tempname
-      Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "-f", format,
+      Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "--force-overwrites", "-f", format,
                              "-o", downloaded, item.url.to_s]).result
       return Path.new(downloaded) if !@audio.conversion
       cp = @audio.conversion.not_nil!
@@ -58,7 +58,7 @@ module Podcaster
     protected def thumbnail(item : Item)
       if !@thumbnails_cache.has_key? item.thumbnail
         downloaded = File.tempname
-        Command.new("yt-dlp", ["--proxy", @thumbnail.proxy.to_s,
+        Command.new("yt-dlp", ["--force-overwrite", "--proxy", @thumbnail.proxy.to_s,
                                item.thumbnail.to_s, "-o", downloaded]).result
 
         converted = File.tempname ".png"
