@@ -49,7 +49,7 @@ module Podcaster
                                      "--print", "thumbnail", track_url.to_s])
                 .result.lines
                 .each_slice 4 do |track_info|
-                  next if track_info[3] == "NA"
+                  next if track_info[2] == "NA"
                   yield Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3]
                   cache << cache_entry track_url
                 end
