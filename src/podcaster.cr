@@ -64,7 +64,7 @@ else
 
     config.tasks.each do |task|
       config.parser.items task do |item|
-        downloaded = config.downloader.download item
+        downloaded = config.downloader.download item rescue next
         config.uploader.upload downloaded, task.chat
       end
     end

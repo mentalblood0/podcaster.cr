@@ -47,10 +47,11 @@ module Podcaster
                                      "--print", "title",
                                      "--print", "duration",
                                      "--print", "thumbnail", track_url.to_s])
-                .result.lines
-                .each_slice 4 do |track_info|
-                  next if track_info[2] == "NA"
-                  yield Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3]
+                .result.lines.in_slices_of(4)
+                .select { |track_info| track_info[2] != "NA" }
+                .map { |track_info| Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3] }
+                .each do |item|
+                  yield item
                   cache << cache_entry track_url
                 end
             end
