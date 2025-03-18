@@ -42,7 +42,7 @@ module Podcaster
       format = @audio.bitrate ? "ba[abr<=#{@audio.bitrate}]/wa[abr>=#{@audio.bitrate}]" : "mp3"
       Log.info { "<-- #{item}" }
       downloaded = File.tempname
-      Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "--force-overwrites", "-f", format,
+      Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "-f", format,
                              "-o", downloaded, item.url.to_s]).result
       return Path.new(downloaded) if !@audio.conversion
       cp = @audio.conversion.not_nil!
