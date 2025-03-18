@@ -25,6 +25,7 @@ module Podcaster
     getter tasks : Array(Task)
 
     def self.by_name(name : String)
+      Dir.mkdir_p @@dir
       Config.from_yaml File.new @@dir / (name + ".yml")
     end
   end

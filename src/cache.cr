@@ -2,9 +2,14 @@ require "json"
 
 module Podcaster
   class Cache
-    @@dir = (Path.new.posix? ? Path.new("~", ".local", "share", "podcaster_cr") : Path.new("~", "AppData", "podcaster_cr", "cache")).expand(home: true)
+    class_property dir : Path
+    {% if flag?(:windows) %}
+      @@dir = Path.new("~", "AppData", "podcaster_cr", "cache").expand(home: true)
+    {% else %}
+      @@dir = Path.new("~", ".local", "share", "podcaster_cr").expand(home: true)
+    {% end %}
 
-    @entries : Set(JSON::Any) = Set(JSON::Any).new
+    @entries = Set(JSON::Any).new
     @path : Path
 
     def initialize(name : String)
