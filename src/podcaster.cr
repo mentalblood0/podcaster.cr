@@ -12,9 +12,9 @@ module Podcaster
   class Config
     class_property dir : Path
     {% if flag?(:windows) %}
-      @@dir = Path.new("~", "AppData", "podcaster_cr", "config").expand(home: true)
+      @@dir = Path.new("~", "AppData", "podcaster", "config").expand(home: true)
     {% else %}
-      @@dir = Path.new("~", ".config", "podcaster_cr").expand(home: true)
+      @@dir = Path.new("~", ".config", "podcaster").expand(home: true)
     {% end %}
 
     include YAML::Serializable

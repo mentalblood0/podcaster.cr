@@ -4,9 +4,9 @@ module Podcaster
   class Cache
     class_property dir : Path
     {% if flag?(:windows) %}
-      @@dir = Path.new("~", "AppData", "podcaster_cr", "cache").expand(home: true)
+      @@dir = Path.new("~", "AppData", "podcaster", "cache").expand(home: true)
     {% else %}
-      @@dir = Path.new("~", ".local", "share", "podcaster_cr").expand(home: true)
+      @@dir = Path.new("~", ".local", "share", "podcaster").expand(home: true)
     {% end %}
 
     @entries = Set(JSON::Any).new
