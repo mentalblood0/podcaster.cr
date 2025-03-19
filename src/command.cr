@@ -7,7 +7,7 @@ module Podcaster
         "Read timed out.", "Unable to fetch PO Token for mweb client", "IncompleteRead",
         "Remote end closed connection without response", "Cannot connect to proxy.",
         "Temporary failure in name resolution", "timed out. (connect timeout",
-        "Connection reset by peer",
+        "Connection reset by peer", "HTTP Error 502",
       ]
     end
 
@@ -19,6 +19,7 @@ module Podcaster
         ": Requested format is not available",
         "Postprocessing: Error opening output files: Invalid argument",
         "members-only content like this video",
+        "Join this channel to get access",
       ]
     end
 
