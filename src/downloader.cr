@@ -45,7 +45,7 @@ module Podcaster
       Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "--force-overwrites", "-f", format,
                              "-o", downloaded, item.url.to_s]).result
       return Path.new(downloaded) if !@audio.conversion
-      cp = @audio.conversion.not_nil!
+      cp = @audio.conversion.as Audio::Conversion
       converted = File.tempname ".mp3"
       Command.new("ffmpeg", ["-i", downloaded, "-vn",
                              "-ar", cp.samplerate.to_s,

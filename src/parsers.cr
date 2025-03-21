@@ -68,7 +68,7 @@ module Podcaster
     end
 
     protected def artist_url(task : Task)
-      artist_url = URI.parse "http://www.youtube.com/#{task.artist}"
+      URI.parse "http://www.youtube.com/#{task.artist}"
     end
 
     protected def performer(task : Task)
@@ -81,7 +81,6 @@ module Podcaster
 
     def items(task : Task, &)
       cache = Cache.new task.artist.gsub /\W/, ""
-      skipping = true
       Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--flat-playlist", "--playlist-items", "::-1",
                              "--print", "url",
                              "--print", "title",
