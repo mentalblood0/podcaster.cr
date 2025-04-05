@@ -47,7 +47,6 @@ module Podcaster
 
     getter artist : String
     getter chat : String
-    getter start_after : String?
 
     def initialize(@artist, @chat)
     end
