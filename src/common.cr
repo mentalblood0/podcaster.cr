@@ -21,7 +21,7 @@ module Podcaster
         @performer = performer
       end
 
-      @title = @title.sub(/#{@performer} ?-|—/, "").strip
+      @title = @title.sub(/#{Regex.escape @performer.not_nil!} ?-|—/, "").strip
     end
 
     def to_s(io : IO)
