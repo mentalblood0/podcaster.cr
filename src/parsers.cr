@@ -36,27 +36,27 @@ module Podcaster
         end
         .select { |url| !cache.includes? cache_entry url }
         .each do |album_url|
-          Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
-                                 "--print", "webpage_url", album_url.to_s])
-            .result.lines
+          tracks_urls_output = Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
+                                                      "--print", "webpage_url", album_url.to_s]).result rescue nil
+          next if !tracks_urls_output
+          tracks_urls_output.lines
             .map { |line| URI.parse line }
             .select { |url| !cache.includes? cache_entry url }
             .each do |track_url|
-              info_output =
+              track_info_output =
                 Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                                        "--print", "uploader",
                                        "--print", "title",
                                        "--print", "duration",
                                        "--print", "thumbnail", track_url.to_s]).result rescue nil
-              if info_output
-                info_output.lines.in_slices_of(4)
-                  .select { |track_info| track_info[2] != "NA" }
-                  .map { |track_info| Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3] }
-                  .each do |item|
-                    yield item
-                    cache << cache_entry track_url
-                  end
-              end
+              next if !track_info_output
+              track_info_output.lines.in_slices_of(4)
+                .select { |track_info| track_info[2] != "NA" }
+                .map { |track_info| Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3] }
+                .each do |item|
+                  yield item
+                  cache << cache_entry track_url
+                end
             end
           cache << cache_entry album_url
         end
