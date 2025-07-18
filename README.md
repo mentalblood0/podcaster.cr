@@ -1,4 +1,4 @@
-# podcaster
+# 🎙️ podcaster
 
 Fast and stable Bandcamp/Youtube to Telegram audio uploader
 
