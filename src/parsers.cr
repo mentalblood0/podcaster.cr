@@ -24,7 +24,7 @@ module Podcaster
     end
 
     def items(task : Task, &)
-      artist_url = URI.parse "http://#{task.artist}.bandcamp.com"
+      artist_url = URI.parse "http://#{task.artist}.bandcamp.com/music"
       cache = Cache.new task.artist
       Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                              "--print", "url", artist_url.to_s])
