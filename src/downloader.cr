@@ -39,7 +39,7 @@ module Podcaster
     end
 
     protected def audio(item : Item)
-      format = @audio.bitrate ? "ba[abr<=#{@audio.bitrate}]/wa[abr>=#{@audio.bitrate}]" : "mp3"
+      format = @audio.bitrate ? ((@audio.bitrate == 0) ? "ba" : "ba[abr<=#{@audio.bitrate}]/wa[abr>=#{@audio.bitrate}]") : "mp3"
       Log.info { "<-- #{item}" }
       downloaded = File.tempname
       Command.new("yt-dlp", ["--proxy", @audio.proxy.to_s, "--force-overwrites", "-f", format,

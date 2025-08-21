@@ -23,6 +23,11 @@ module Podcaster
     getter downloader : Downloader
     getter uploader : Uploader
     getter tasks : Array(Task)
+    getter log : String = "info"
+
+    def after_initialize
+      Log.setup Log::Severity.parse @log
+    end
 
     def self.by_name(name : String)
       Dir.mkdir_p @@dir

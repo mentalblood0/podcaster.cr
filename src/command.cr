@@ -26,6 +26,7 @@ module Podcaster
     @process : Process
 
     def initialize(@command : String, @args : Enumerable(String))
+      Log.debug { "#{@command} #{args.join ' '}" }
       @process = run
     end
 
