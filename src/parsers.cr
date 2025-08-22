@@ -54,8 +54,7 @@ module Podcaster
                 .select { |track_info| track_info[2] != "NA" }
                 .map { |track_info| Item.new track_url, track_info[0], track_info[1], track_info[2].to_f.seconds, URI.parse track_info[3] }
                 .each do |item|
-                  yield item
-                  cache << cache_entry track_url
+                  cache << cache_entry track_url if yield item
                 end
             end
           cache << cache_entry album_url
@@ -101,8 +100,7 @@ module Podcaster
         .each do |track_info|
           thumbnail = URI.parse Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--playlist-items", "1",
                                                        "--print", "thumbnail", track_info[:url].to_s]).result.strip rescue next
-          yield Item.new track_info[:url], performer(task), track_info[:title], track_info[:duration], thumbnail
-          cache << cache_entry track_info[:title], track_info[:duration]
+          cache << cache_entry track_info[:title], track_info[:duration] if yield Item.new track_info[:url], performer(task), track_info[:title], track_info[:duration], thumbnail
         end
     end
   end

@@ -3,6 +3,7 @@ require "log"
 require "uri"
 require "uri/yaml"
 
+require "./command.cr"
 require "./common.cr"
 require "./downloader.cr"
 require "./uploader.cr"
@@ -69,8 +70,13 @@ else
 
     config.tasks.each do |task|
       config.parser.items task do |item|
-        downloaded = config.downloader.download item rescue next
-        config.uploader.upload downloaded, task.chat
+        begin
+          downloaded = config.downloader.download item
+          config.uploader.upload downloaded, task.chat
+          true
+        rescue ex : Command::FatalError
+          false
+        end
       end
     end
   end

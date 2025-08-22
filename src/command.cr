@@ -20,6 +20,7 @@ module Podcaster
         "Postprocessing: Error opening output files: Invalid argument",
         "members-only content like this video",
         "Join this channel to get access",
+        "HTTP Error 403",
       ]
     end
 
