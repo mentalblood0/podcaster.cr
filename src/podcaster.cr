@@ -74,7 +74,7 @@ else
           downloaded = config.downloader.download item
           config.uploader.upload downloaded, task.chat
           true
-        rescue ex : Command::FatalError
+        rescue ex : Podcaster::Command::FatalError
           false
         end
       end
