@@ -12,6 +12,7 @@ module Podcaster
 
     getter proxy : URI?
     getter? only_cache : Bool = false
+    getter? reversed : Bool = true
 
     use_yaml_discriminator "source", {bandcamp: Bandcamp, youtube: Youtube}
 
@@ -26,10 +27,10 @@ module Podcaster
     def items(task : Task, &)
       artist_url = URI.parse "http://#{task.artist}.bandcamp.com/music"
       cache = Cache.new task.artist
-      Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
-                             "--print", "url", artist_url.to_s])
-        .result.lines.reverse!
-        .map { |line| URI.parse line }
+      lines = Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
+                                     "--print", "url", artist_url.to_s])
+        .result.lines
+      (@reversed ? lines.reverse! : lines).map { |line| URI.parse line }
         .skip_while do |url|
           cache << cache_entry url if only_cache?
           only_cache?
@@ -84,12 +85,12 @@ module Podcaster
     def items(task : Task, &)
       cache = Cache.new task.artist.gsub /\W/, ""
       skipping = true
-      Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--flat-playlist", "--playlist-items", "::-1",
-                             "--print", "url",
-                             "--print", "title",
-                             "--print", "duration", artist_url(task).to_s])
+      lines = Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--flat-playlist", "--playlist-items", "::-1",
+                                     "--print", "url",
+                                     "--print", "title",
+                                     "--print", "duration", artist_url(task).to_s])
         .result.lines.in_slices_of(3)
-        .map { |track_info| {url: URI.parse(track_info[0]), title: track_info[1], duration: track_info[2]} }
+      (@reversed ? lines.reverse! : lines).map { |track_info| {url: URI.parse(track_info[0]), title: track_info[1], duration: track_info[2]} }
         .select { |track_info| track_info[:duration] != "NA" }
         .map { |track_info| {url: track_info[:url], title: track_info[:title], duration: track_info[:duration].to_f.seconds} }
         .skip_while do |track_info|
