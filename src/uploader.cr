@@ -1,4 +1,5 @@
 require "http/client"
+require "http_proxy"
 require "yaml"
 
 module Podcaster
@@ -8,6 +9,7 @@ module Podcaster
     include YAML::Serializable
 
     @token : String
+    @proxy : {ip: String, port: UInt16}?
 
     protected def split(input : Downloaded, &)
       parts = (File.size(input.audio) / @@max_size).ceil
@@ -57,7 +59,15 @@ module Podcaster
         Log.info { "--> #{downloaded}" }
         loop do
           response = begin
-            HTTP::Client.post("https://api.telegram.org/bot#{@token}/sendAudio", headers: headers, body: body)
+            if proxy = @proxy
+              proxy_client = HTTP::Proxy::Client.new proxy[:ip], proxy[:port]
+              uri = URI.parse "https://api.telegram.org"
+              client = HTTP::Client.new uri
+              client.proxy = proxy_client
+              client.post "/bot#{@token}/sendAudio", headers: headers, body: body
+            else
+              HTTP::Client.post("https://api.telegram.org/bot#{@token}/sendAudio", headers: headers, body: body)
+            end
           rescue ex
             Log.warn { "Exception when sending: '#{ex.message}', retrying in 0.2 seconds" }
             sleep 0.2.seconds
