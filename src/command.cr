@@ -8,6 +8,7 @@ module Podcaster
         "Remote end closed connection without response", "Cannot connect to proxy.",
         "Temporary failure in name resolution", "timed out. (connect timeout",
         "Connection reset by peer", "HTTP Error 502",
+        "HTTP Error 429",
       ]
     end
 

@@ -70,12 +70,17 @@ else
 
     config.tasks.each do |task|
       config.parser.items task do |item|
-        begin
-          downloaded = config.downloader.download item
-          config.uploader.upload downloaded, task.chat
-          true
-        rescue ex : Podcaster::Command::FatalError
-          false
+        loop do
+          begin
+            downloaded = config.downloader.download item
+            config.uploader.upload downloaded, task.chat
+            break true
+          rescue ex : Podcaster::Command::FatalError
+            break false
+          rescue ex : Podcaster::Command::RecoverableError
+            sleep 16.seconds
+            next
+          end
         end
       end
     end
