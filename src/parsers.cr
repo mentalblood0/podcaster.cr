@@ -11,6 +11,7 @@ module Podcaster
     include YAML::Serializable
 
     getter proxy : URI?
+    getter cache_dir : Path
     getter? only_cache : Bool = false
     getter? reversed : Bool = true
 
@@ -26,7 +27,7 @@ module Podcaster
 
     def items(task : Task, &)
       artist_url = URI.parse "http://#{task.artist}.bandcamp.com/music"
-      cache = Cache.new task.artist
+      cache = Cache.new cache_dir / "#{task.artist}.txt"
       lines = Command.new("yt-dlp", ["--flat-playlist", "--proxy", @proxy.to_s,
                                      "--print", "url", artist_url.to_s])
         .result.lines
@@ -83,7 +84,7 @@ module Podcaster
     end
 
     def items(task : Task, &)
-      cache = Cache.new task.artist.gsub /\W/, ""
+      cache = Cache.new cache_dir / "#{task.artist.gsub /\W/, ""}.txt"
       skipping = true
       lines = Command.new("yt-dlp", ["--proxy", @proxy.to_s, "--flat-playlist", "--playlist-items", "::-1",
                                      "--print", "url",

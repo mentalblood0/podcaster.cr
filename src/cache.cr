@@ -2,24 +2,16 @@ require "json"
 
 module Podcaster
   class Cache
-    class_property dir : Path
-    {% if flag?(:windows) %}
-      @@dir = Path.new("~", "AppData", "podcaster", "cache").expand(home: true)
-    {% else %}
-      @@dir = Path.new("~", ".local", "share", "podcaster").expand(home: true)
-    {% end %}
-
     @entries = Set(JSON::Any).new
     @path : Path
 
-    def initialize(name : String)
-      @path = @@dir / "#{name}.txt"
+    def initialize(@path)
       if File.exists? @path
         File.each_line @path do |line|
           @entries << JSON.parse line
         end
       else
-        Dir.mkdir_p @@dir
+        Dir.mkdir_p @path.parent
       end
     end
 
